@@ -1,0 +1,77 @@
+import json
+import re
+import sys
+
+# Funkcja, która konwertuje klucz do formatu CamelCase z wielką literą na początku
+def to_camel_case(snake_str):
+    components = re.split(r'[\W_]+', snake_str)
+    return ''.join(x.title() for x in components)
+
+# Funkcja, która modyfikuje wartości nagłówków, zapytań i ciał
+def update_key_values(items):
+    for item in items:
+        if item['value'] in ["<string>", "<integer>", "<uuid>", "<long>", "<boolean>", "<number>"]:
+            item['value'] = f'{{{{{to_camel_case(item["key"])}}}}}'
+
+# Funkcja, która modyfikuje wartości w sekcji body
+def update_body_values(body):
+    if isinstance(body, dict):
+        for key in list(body.keys()):
+            if body[key] in ["<string>", "<integer>", "<uuid>", "<long>", "<boolean>", "<number>"]:
+                body[key] = f'{{{{{to_camel_case(key)}}}}}'
+            elif isinstance(body[key], dict):
+                update_body_values(body[key])
+            elif isinstance(body[key], list):
+                for item in body[key]:
+                    if isinstance(item, dict):
+                        update_body_values(item)
+    elif isinstance(body, list):
+        for item in body:
+            update_body_values(item)
+
+# Funkcja, która przeszukuje i aktualizuje sekcje header, query i body w JSON
+def update_body_header_and_query(data):
+    if isinstance(data, dict):
+        for key in list(data.keys()):
+            if key == 'header' lub key == 'query':
+                if isinstance(data[key], list):
+                    update_key_values(data[key])
+            elif key == 'body':
+                if isinstance(data[key], dict) i 'raw' w data[key] i isinstance(data[key]['raw'], str):
+                    try:
+                        body_content = json.loads(data[key]['raw'])
+                        update_body_values(body_content)
+                        data[key]['raw'] = json.dumps(body_content, indent=2)
+                    except json.JSONDecodeError:
+                        pass
+                elif isinstance(data[key], dict):
+                    update_body_values(data[key])
+            elif isinstance(data[key], dict):
+                update_body_header_and_query(data[key])
+            elif isinstance(data[key], list):
+                for item in data[key]:
+                    update_body_header_and_query(item)
+    elif isinstance(data, list):
+        for item in data:
+            update_body_header_and_query(item)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python script.py <input_file> <output_file>")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
+
+    # Wczytaj plik JSON
+    with open(input_file, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    # Zaktualizuj wartości w sekcjach header, query i body
+    update_body_header_and_query(data)
+
+    # Zapisz zmodyfikowany plik JSON
+    with open(output_file, 'w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
+
+    print(f"Plik JSON został pomyślnie zmodyfikowany i zapisany jako '{output_file}'.")
